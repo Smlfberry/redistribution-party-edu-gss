@@ -1,0 +1,356 @@
+---
+title: "Final Project"
+output: 
+  pdf_document:
+  html_document:
+    toc: true
+    toc_depth: 2
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(haven)
+library(ggplot2)
+library(knitr)
+```
+
+```{r load data and create function}
+
+# added haven to load in data as sav, would not let me download it as csv
+# load in data
+gss_raw <- read_sav("GSS2024.sav")
+
+# refine to relevant data
+gss_redist <- gss_raw |>
+  select(
+    educ, partyid, polviews, natfare, nathealy, natsoc, nateduc,
+  natenvir
+  )
+
+# create function to create age groups
+
+create_groups <- function(v) {
+  
+  output <- vector(mode = "character", length = length(v))
+  
+  for(i in seq_along(v)) {
+    value <- v[i]
+    
+    if(is.na(value)) {
+      output[i] <- NA_character_
+      
+    } else if (value <= 11) {
+      output[i] <- "Less than HS"
+    
+    } else if (value == 12) {
+      output[i] <- "Graduated HS"
+    
+    } else if (value >= 13 & value <= 15) {
+      output[i] <- "Some College"
+      
+    } else if (value == 16) {
+      output[i] <- "Bachelor's Degree"
+      
+    } else if (value >= 17) {
+      output[i] <- "Graduate Degree"
+      
+    } else {
+      output[i] <- NA_character_
+    }
+  }
+   return(output) 
+}
+```
+
+``` {r order and regroup }
+# apply function and create educ groups 
+gss_redist <- gss_redist |>
+  mutate(educ_groups = create_groups(educ))
+
+# order education levels
+gss_redist <- gss_redist |>
+  mutate(educ_groups = factor(
+    educ_groups,
+    levels = c("Less than HS", "Graduated HS", "Some College", "Bachelor's Degree", "Graduate Degree")
+    )
+      )
+
+# remove NA
+gss_redist <- gss_redist |>
+  filter(!is.na(educ_groups))
+
+# regroup partyid (0-2 = Dem, 4-6 = Rep, 3 = NA -- independents)
+gss_redist <- gss_redist |>
+  mutate(party_groups = case_when(
+    partyid %in% c(0,1,2) ~ "Democrat Preference",
+    partyid %in% c(4,5,6) ~ "Republican Preference",
+    TRUE ~ NA_character_
+  )
+    ) |>
+  filter(!is.na(party_groups))
+```
+
+```{r plot and table 1 and 2: dem and rep lollipop plot}
+
+# table 1: count of dems by education
+gss_redist |>
+  filter(party_groups == "Democrat Preference") |>
+  count(educ_groups) |>
+  kable(
+  caption = "Level of Education by Respondants with a Democratic Preference"
+  )
+
+# plot 1: democrats by education
+
+gss_redist |> 
+  filter(party_groups == "Democrat Preference") |>
+  drop_na(educ_groups) |>
+  count(educ_groups) |>
+  ggplot(aes(x = educ_groups, y = n)) +
+  geom_segment(aes(x = educ_groups, xend = educ_groups,
+                   y = 0, yend = n)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Education Level by Democratic Preference",
+    x = "Education Level",
+    y = "Number of People"
+  )
+
+# table 2: count of rep by education
+gss_redist |>
+  filter(party_groups == "Republican Preference") |>
+  count(educ_groups) |>
+  kable(
+  caption = "Level of Education by Respondants with a Republican Preference"
+  )
+
+# plot 2: republicans by education
+gss_redist |> 
+  filter(party_groups == "Republican Preference") |>
+  drop_na(educ_groups) |>
+  count(educ_groups) |>
+  ggplot(aes(x = educ_groups, y = n)) +
+  geom_segment(aes(x = educ_groups, xend = educ_groups,
+                   y = 0, yend = n)) +
+  geom_point(size = 2) +
+  labs(
+    title = "Education Level by Republican Preference",
+    x = "Education Level",
+    y = "Number of People"
+  )
+```
+**Plot 1** shows that most respondents with a Democratic preference have either some form secondary education. They also appear more represented at the higher levels of education than Republicans.
+
+**Plot 2** shows that respondents with a Republican preference are more concentrated around 
+"Graduated HS: or "Some College" with a noticeably smaller amount completing a Bachelor or Graduate Degree. While there are respondents with Bachelor and Graduate degrees, it is a noticeably smaller amount than for Democrat respondents. 
+
+Overall, these patterns aligns well with previously observed patterns about the political makeup of various levels of education. These differences also serve as important context for later findings. Since Democrat respondents tend to be more highly educated, the relationships between education and redistribution attitudes may be reflective of these baseline differences. 
+```{r plot 3: dem v rep boxplot}
+
+# plot 3: dem v rep
+gss_redist |>
+  mutate(educ = as.numeric(educ)) |>
+  drop_na(educ_groups) |>
+  ggplot(aes(x = party_groups, y = educ)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.3) +
+  labs(
+    title = "Years of Education by Political Party",
+    x = "Party Preference",
+    y = "Years of Education"
+  )
+```
+**Plot 3** provides a slightly different interpretation than **Plot 1** and **Plot 2** -- as it shows education as a continuous variable in terms of years instead of creating education groups. The boxplot uses the raw continuous data, showing the same pattern of higher levels of education for Democrats, but now appearing less extreme. While Democrats have a higher mean and the overall distribution is a bit higher, overall there is quite a lot of overlap between the two parties education. Overall, while **Plot 3** confirms the findings from **Plot 1 and 2** hold true with the raw continuous data, it shows they are not as exaggerated and that both parties have respondents across the all levels of education. 
+
+```{r plot 4 faceted line with question attitude, fig.width=14, fig.height=8}
+
+# plot 4: education level and pol pref for each question
+
+# clean data for plot: recode vars, make numeric and remove NA
+ gss_redist <- gss_redist |>
+   mutate(
+       natfare = ifelse(natfare %in% 1:3, as.numeric(natfare), NA_real_),
+       nathealy = ifelse(nathealy %in% 1:3, as.numeric(nathealy), NA_real_),
+       natsoc = ifelse(natsoc %in% 1:3, as.numeric(natsoc), NA_real_),
+       nateduc = ifelse(nateduc %in% 1:3, as.numeric(nateduc), NA_real_),
+      natenvir = ifelse(natenvir %in% 1:3, as.numeric(natenvir), NA_real_)
+     )
+   
+# group data by educ and party, then compute mean question response of each
+ 
+# natfare
+ newnatfare <- gss_redist |>
+   group_by(educ_groups, party_groups) |> 
+   summarize(mean_attitude = mean(natfare, na.rm = TRUE)) |>
+   mutate(question = "natfare")
+ 
+# nathealy
+ newnathealy <- gss_redist |>
+   group_by(educ_groups, party_groups) |> 
+   summarize(mean_attitude = mean(nathealy, na.rm = TRUE)) |>
+   mutate(question = "nathealy")
+ 
+# natsoc
+ newnatsoc <- gss_redist |>
+   group_by(educ_groups, party_groups) |> 
+   summarize(mean_attitude = mean(natsoc, na.rm = TRUE)) |>
+   mutate(question = "natsoc")
+ 
+# nateduc 
+ newnateduc <- gss_redist |>
+   group_by(educ_groups, party_groups) |> 
+   summarize(mean_attitude = mean(nateduc, na.rm = TRUE)) |>
+   mutate(question = "nateduc")
+ 
+ # natenvir
+ newnatenvir <- gss_redist |>
+   group_by(educ_groups, party_groups) |> 
+   summarize(mean_attitude = mean(natenvir, na.rm = TRUE)) |>
+   mutate(question = "natenvir")
+ 
+ # merge summaries together to make smaller dataset for plot
+ 
+ new_gss <- bind_rows(
+   newnatfare,
+   newnathealy,
+   newnatsoc,
+   newnateduc,
+   newnatenvir
+ )
+ 
+ # relabel question names for plots
+ new_gss <- new_gss |>
+   mutate(
+     new_question_labels = case_when(
+       question == "natfare" ~ "Welfare Spending",
+       question == "nathealy" ~ "Health Spending",
+       question == "natsoc" ~ "Social Security Spending",
+       question == "nateduc" ~ "Education Spending",
+       question == "natenvir" ~ "Enviromental Protection Spending"
+     )
+   )
+ 
+ # create big plot
+ new_gss |>
+   ggplot(aes(
+     x = educ_groups,
+     y = mean_attitude,
+     color = party_groups,
+     group = party_groups
+   )) +
+   geom_point() +
+   geom_line() +
+   facet_wrap(~ new_question_labels, nrow = 2, scales = "free_x") +
+   labs(
+     title = "Mean Attitudes of Government Redistribution by Education and Political Party",
+     x = "Education Level",
+     y = "Mean Attitude (1 = too little spending, 3 = too much spending)",
+     color = "Party Preference"
+   ) +
+  scale_color_manual(
+     values = c(
+       "Democrat Preference" = "blue",
+       "Republican Preference" = "red"
+     )
+   ) +
+   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+   
+```
+**Plot 4** shows how support for five types of government spending varies by education level and political party. For each category, Democrats across all education levels consistently think the government is spending too little, while Republican consistently think they are spending too much. The gap between Democrats and Republicans at each education level have the highest level of variance for welfare and environmental protection spending. Additionally, the gap between parties across education levels for social security spending was very narrow. 
+  Looking more closely at variations across education level, Republican preferences remain relatively stable across education groups, meaning increased education may not have have a significant effect on their preferences. Additionally, Democrats preferences were very stable across all questions. 
+    Overall, this supports both my **Hypothesis 1**, as Democrats were more supportive of government spending across education levels than Republicans and preferences remained quite consistent. Additionally, the the one outlier was social security, in which Democrats and Republicans attitudes towards spending were largely overlapped -- once again in support of my H1. 
+    Looking at my **Hypothesis 2**, though, I did not find the difference between Democrats and Republicans converged as education increased. If anything, the polarization between the two increased as education increased -- especially looking at environmental protection and welfare spending.
+```{r load in 2021 data for comparison}
+
+# load data 
+gss2010_raw <- read_sav("GSS2010.sav")
+
+# check data has the vars I need (it does)
+check_vars <- c("natfare", "natsoc", "nathealy", "natenvir", "nateduc")
+check_vars %in% names(gss2010_raw)
+
+# select vars I need
+gss10_redist <- gss2010_raw |>
+  select(natfare, natsoc, nathealy, natenvir, nateduc)
+
+# clean data, convert to numeric
+gss10_redist <- gss10_redist |>
+  mutate(
+    natfare = ifelse(natfare %in% 1:3, as.numeric(natfare), NA_real_),
+    natsoc = ifelse(natsoc %in% 1:3, as.numeric(natsoc), NA_real_),
+    nathealy = ifelse(nathealy %in% 1:3, as.numeric(nathealy), NA_real_),
+    natenvir = ifelse(natenvir %in% 1:3, as.numeric(natenvir), NA_real_),
+    nateduc = ifelse(nateduc %in% 1:3, as.numeric(nateduc), NA_real_)
+  )
+
+# compute means for each question by year
+
+# 2024 means and add year column
+qmean24 <- gss_redist |>
+  summarize(across(
+    c("natfare", "natsoc", "nathealy", "natenvir", "nateduc"),
+    ~ mean(.x, na.rm = TRUE)
+  )) |>
+  mutate(year = 2024)
+
+# 2010 means and add year column
+qmean10 <- gss10_redist |>
+  summarize(across(
+    c("natfare", "natsoc", "nathealy", "natenvir", "nateduc"),
+    ~ mean(.x, na.rm = TRUE)
+  )) |>
+  mutate(year = 2010)
+
+# combine to you data set and pivot to prep for grapg
+mean_combined <- bind_rows(qmean10, qmean24) |>
+  pivot_longer(
+    cols = c("natfare", "natsoc", "nathealy", "natenvir", "nateduc"),
+    names_to = "question",
+    values_to = "attitude_mean"
+  )
+
+# add labels 
+mean_combined <- mean_combined |>
+   mutate(
+   question_label = case_when(
+       question == "natfare" ~ "Welfare Spending",
+       question == "nathealy" ~ "Health Spending",
+       question == "natsoc" ~ "Social Security Spending",
+       question == "nateduc" ~ "Education Spending",
+       question == "natenvir" ~ "Enviromental Protection Spending"
+     )
+   )
+
+# create levels w factor for a nicer kable display 
+mean_combined <- mean_combined |>
+  mutate(question_label = factor(
+    question_label,
+    levels = c(
+      "Welfare Spending",
+      "Social Security Spending",
+      "Health Spending",
+      "Enviromental Protection Spending",
+      "Education Spending"
+    )
+  ))
+```
+
+```{r plot 5: 2010 v 2024 mean attitudes}
+
+# create final plot
+mean_combined |>
+  ggplot(aes(x = factor(year), 
+             y = attitude_mean,
+             fill = factor(year))) +
+  geom_col(position = "dodge") +
+  facet_wrap(~ question_label, nrow = 2) +
+  labs(
+    title = "Mean Attitudes Towards Government Redistribution: 2010 vs 2024",
+    x = "Year",
+    y = "Mean Attitudes (1 = Too Little, 3 = Too Much)",
+    fill = "Year"
+  )
+
+```
+**Plot 5** shows that there was very little change in attitudes towards government spending from 2010 to 2024. Across each type of spending, respondents were slightly less likely to think government spending is too high -- meaning a slight increased preference for redistribution. But, overall, this supports my **Hypothesis 3**, as there was little to no change in attitudes towards government spending and redistribution over the last 14 years.
