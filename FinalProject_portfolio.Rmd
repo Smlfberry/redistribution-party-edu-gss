@@ -1,9 +1,6 @@
 ---
 title: "Redistribution Attitudes by Education and Party"
-output:
-  pdf_document:
-    toc: true
-    toc_depth: '2'
+output: 
   html_document:
     toc: true
     toc_depth: 2

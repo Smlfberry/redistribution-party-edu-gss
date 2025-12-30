@@ -5,4 +5,7 @@ FinalProject_class.Rmd
 project.Rproj
 .Rproj.user/
 .DS_Store
+.RData
+.Rhistory
+.Rproj.user/
 
