@@ -1,7 +1,9 @@
 ---
-title: "Final Project"
-output: 
+title: "Redistribution Attitudes by Education and Party"
+output:
   pdf_document:
+    toc: true
+    toc_depth: '2'
   html_document:
     toc: true
     toc_depth: 2
@@ -18,8 +20,7 @@ library(knitr)
 
 ```{r load data and create function}
 
-# added haven to load in data as sav, would not let me download it as csv
-# load in data
+# load GSS data
 gss_raw <- read_sav("GSS2024.sav")
 
 # refine to relevant data
@@ -29,7 +30,7 @@ gss_redist <- gss_raw |>
   natenvir
   )
 
-# create function to create age groups
+# create edu groups
 
 create_groups <- function(v) {
   
@@ -259,8 +260,8 @@ gss_redist |>
 ```
 **Plot 4** shows how support for five types of government spending varies by education level and political party. For each category, Democrats across all education levels consistently think the government is spending too little, while Republican consistently think they are spending too much. The gap between Democrats and Republicans at each education level have the highest level of variance for welfare and environmental protection spending. Additionally, the gap between parties across education levels for social security spending was very narrow. 
   Looking more closely at variations across education level, Republican preferences remain relatively stable across education groups, meaning increased education may not have have a significant effect on their preferences. Additionally, Democrats preferences were very stable across all questions. 
-    Overall, this supports both my **Hypothesis 1**, as Democrats were more supportive of government spending across education levels than Republicans and preferences remained quite consistent. Additionally, the the one outlier was social security, in which Democrats and Republicans attitudes towards spending were largely overlapped -- once again in support of my H1. 
-    Looking at my **Hypothesis 2**, though, I did not find the difference between Democrats and Republicans converged as education increased. If anything, the polarization between the two increased as education increased -- especially looking at environmental protection and welfare spending.
+    Overall Democrats were more supportive of government spending across education levels than Republicans and preferences remained quite consistent. Additionally, the the one outlier was social security, in which Democrats and Republicans attitudes towards spending were largely overlapped.  
+    Still, I did not find the difference between Democrats and Republicans converged as education increased. If anything, the polarization between the two increased as education increased -- especially looking at environmental protection and welfare spending.
 ```{r load in 2021 data for comparison}
 
 # load data 
@@ -353,4 +354,4 @@ mean_combined |>
   )
 
 ```
-**Plot 5** shows that there was very little change in attitudes towards government spending from 2010 to 2024. Across each type of spending, respondents were slightly less likely to think government spending is too high -- meaning a slight increased preference for redistribution. But, overall, this supports my **Hypothesis 3**, as there was little to no change in attitudes towards government spending and redistribution over the last 14 years.
+**Plot 5** shows that there was very little change in attitudes towards government spending from 2010 to 2024. Across each type of spending, respondents were slightly less likely to think government spending is too high -- meaning a slight increased preference for redistribution. Additionally, there was little to no change in attitudes towards government spending and redistribution over the last 14 years.
